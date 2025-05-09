@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { toast } from 'react-toastify';
 
-function AdminView({ movies }) {
+function AdminView({ movies, addMovieToList, refetchMovies }) {
+
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
@@ -20,6 +21,12 @@ function AdminView({ movies }) {
   };
 
   const handleSubmit = async () => {
+    const { title, director, year, description, genre } = formData;
+    if (!title || !director || !year || !description || !genre) {
+      toast.error('Please fill in all fields.');
+      return;
+    }
+
     try {
       const res = await fetch('https://movieapp-api-lms1.onrender.com/movies/addMovie', {
         method: 'POST',
@@ -27,11 +34,13 @@ function AdminView({ movies }) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          ...formData,
+          year: Number(formData.year)
+        })
       });
 
       const data = await res.json();
-      console.log('Add Movie Response:', data);
 
       if (res.ok) {
         toast.success('Movie added successfully!');
@@ -43,7 +52,14 @@ function AdminView({ movies }) {
           description: '',
           genre: ''
         });
-        // You might want to refresh the list here or lift state up to reload movies
+        
+
+        // Prevent duplicate entries
+        addMovieToList(prevMovies => {
+          const exists = prevMovies.some(m => m._id === data.movie._id);
+          return exists ? prevMovies : [...prevMovies, data.movie];
+        });
+
       } else {
         toast.error(data.message || 'Failed to add movie.');
       }
@@ -56,40 +72,34 @@ function AdminView({ movies }) {
   return (
     <div>
       <h2>Admin Movie Dashboard</h2>
-
-      <button
-        id="addMovie"
-        className="btn btn-success mb-3"
-        onClick={() => setShowModal(true)}
-      >
+      <button className="btn btn-success mb-3" onClick={() => setShowModal(true)}>
         Add Movie
       </button>
-<table className="table">
-  <thead>
-    <tr>
-      <th>#</th>
-      <th>Title</th>
-      <th>Director</th>
-      <th>Year</th>
-      <th>Genre</th>
-      <th>Description</th>
-    </tr>
-  </thead>
-  <tbody>
-    {movies.map((movie, index) => (
-      // Ensure that each key is unique, combining `movie.id` or `movie._id` with the index
-      <tr key={movie.id || movie._id || `movie-${index}`}>
-        <td>{index + 1}</td>
-        <td>{movie.title}</td>
-        <td>{movie.director}</td>
-        <td>{movie.year}</td>
-        <td>{movie.genre}</td>
-        <td>{movie.description}</td>
-      </tr>
-    ))}
-  </tbody>
-</table>
 
+      <table className="table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Title</th>
+            <th>Director</th>
+            <th>Year</th>
+            <th>Genre</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          {movies.map((movie, index) => (
+            <tr key={`${movie._id || movie.id}-${index}`}>
+              <td>{index + 1}</td>
+              <td>{movie.title}</td>
+              <td>{movie.director}</td>
+              <td>{movie.year}</td>
+              <td>{movie.genre}</td>
+              <td>{movie.description}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
 
       {/* Modal */}
       {showModal && (
@@ -98,8 +108,13 @@ function AdminView({ movies }) {
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">Add Movie</h5>
-                <button type="button" className="close" onClick={() => setShowModal(false)}>
-                  <span>&times;</span>
+                <button
+                  type="button"
+                  className="close"
+                  aria-label="Close"
+                  onClick={() => setShowModal(false)}
+                >
+                  <span aria-hidden="true">&times;</span>
                 </button>
               </div>
               <div className="modal-body">
